@@ -1,0 +1,21 @@
+# Azure IoT Edge
+azure-iot-device
+azure-storage-blob
+
+# Data processing
+pandas
+geopandas
+pyarrow
+pynmea2
+
+# CTD hex file parsing
+seabirdscientific
+gsw
+numpy
+
+# File watching
+watchdog
+
+# Utilities
+python-dotenv
+psutil

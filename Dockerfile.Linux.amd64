@@ -1,0 +1,31 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install oceanstream from git
+ARG OCEANSTREAM_BRANCH=main
+ARG OCEANSTREAM_REPO=https://github.com/OceanStreamIO/sd-data-ingest.git
+RUN git clone --depth 1 -b ${OCEANSTREAM_BRANCH} ${OCEANSTREAM_REPO} /tmp/oceanstream && \
+    pip install --no-cache-dir /tmp/oceanstream && \
+    rm -rf /tmp/oceanstream
+
+# Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Application code
+COPY azure_handler/ azure_handler/
+COPY ingest/ ingest/
+COPY process/ process/
+COPY exports/ exports/
+COPY simulate/ simulate/
+COPY config.py main.py standalone.py ./
+
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-u", "main.py"]
