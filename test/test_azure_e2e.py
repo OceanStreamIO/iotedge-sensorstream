@@ -43,8 +43,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 try:
     from test.conftest import _sync_all_test_data, CACHE_DIR, LOCAL_DATA_DIR
     TEST_DATA_DIR = _sync_all_test_data()
-except Exception:
-    # Fallback for standalone script execution
+except (Exception, SystemExit):
+    # Fallback for standalone script execution or missing Azure connection
     TEST_DATA_DIR = Path(__file__).parent / "test_data"
     if not TEST_DATA_DIR.exists():
         TEST_DATA_DIR = Path(__file__).parent / ".test_data_cache"

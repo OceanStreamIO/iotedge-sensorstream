@@ -22,6 +22,10 @@ SENSORSTREAM_TEST_CACHE : str
 
 from __future__ import annotations
 
+# test_azure_e2e.py is a standalone script (python test/test_azure_e2e.py),
+# not a pytest test — exclude it from collection.
+collect_ignore = ["test_azure_e2e.py"]
+
 import logging
 import os
 import sys
