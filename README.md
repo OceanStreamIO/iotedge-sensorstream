@@ -92,6 +92,84 @@ All config flows through the `EdgeConfig` dataclass in `config.py`:
 
 See `config.py` for the full list. Standalone mode uses env vars and CLI args; IoT Edge mode uses twin desired properties.
 
+## Connecting Sensors
+
+There are three ingestion paths, depending on how sensors deliver data.
+
+### Network Stream (live sensors)
+
+Most oceanographic instruments output serial data. A serial-to-TCP converter (e.g. Moxa NPort, Digi Connect, or `ser2net` on Linux) bridges the serial port to a TCP socket.
+
+**Server mode** — module listens, sensor/converter connects to it:
+```
+Sensor → Serial → ser2net/Moxa → TCP connect to :9100 → sensorstream
+```
+Twin config:
+```json
+{"stream_port": 9100, "stream_connect_mode": "server", "stream_format": "auto"}
+```
+
+**Client mode** — module connects to an existing TCP server:
+```
+Sensor → Serial → ser2net :4001 ← TCP connect ← sensorstream
+```
+Twin config:
+```json
+{"stream_host": "192.168.0.50", "stream_port": 4001, "stream_connect_mode": "client", "stream_format": "nmea"}
+```
+
+UDP also works — common for NMEA multiplexers that broadcast on a UDP port.
+
+| Sensor | Protocol | Format | Notes |
+|--------|----------|--------|-------|
+| Ship GPS (GGA/RMC) | TCP/UDP | `nmea` | NMEA 0183 via serial gateway |
+| Sea-Bird SBE 11plus | TCP | `hex` | Deck unit serial output, hex scan lines |
+| Generic CTD | TCP | `csv` | Comma-separated T/C/P values |
+
+### File Drop (batch or near-real-time)
+
+Sensors or acquisition software write files to a shared volume. The module watches that directory.
+
+```
+EK80/SBE software → writes .cnv/.hex to /data/sensor/ → file watcher → sensorstream
+```
+Twin config:
+```json
+{"input_mode": "file", "watch_dir": "/data/sensor", "watch_patterns": "*.csv,*.txt,*.hex,*.cnv"}
+```
+
+On edge devices, bind-mount the data volume into the container:
+```json
+"createOptions": {"HostConfig": {"Binds": ["/data/sensor:/data/sensor:ro"]}}
+```
+
+### IoT Edge Message Route (from filenotifier)
+
+The `filenotifier` module watches raw data directories and sends messages when new files appear:
+```json
+"routes": {
+  "sensorNotifyToStream": "FROM /messages/modules/filenotifier/outputs/sensorfileadded INTO BrokeredEndpoint(\"/modules/iotedge-sensorstream/inputs/sensorfileadded\")"
+}
+```
+
+### Combining Modes
+
+Set `input_mode: "both"` to run file watcher and stream listener simultaneously — e.g. GNSS over TCP stream + CTD .hex files dropped to disk.
+
+### Testing Without Hardware
+
+Use the built-in simulators:
+```bash
+# Replay NMEA over TCP
+.venv/bin/python standalone.py --simulate-stream ./test_data/gnss/track.txt --output-dir ./output
+
+# Replay CTD hex scans over TCP (emulates SBE 11plus)
+.venv/bin/python standalone.py --simulate-ctd ./test_data/ctd/hex/11901.hex --output-dir ./output
+
+# Drop files into a watch directory
+.venv/bin/python standalone.py --simulate-files ./test_data --watch /tmp/watch --output-dir ./output
+```
+
 ## Testing
 
 ```bash
