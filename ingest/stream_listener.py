@@ -45,6 +45,9 @@ class StreamListener:
         self._servers: list[Any] = []
         self._transports: list[Any] = []
 
+        # Background tasks — must keep strong references to prevent GC
+        self._tasks: list[asyncio.Task] = []
+
         # Hex stream state
         self._hex_header_lines: list[str] = []
         self._hex_scan_lines: list[str] = []
@@ -66,7 +69,7 @@ class StreamListener:
             await self._start_udp(host, port)
 
         # Background flush timer
-        asyncio.ensure_future(self._flush_timer())
+        self._tasks.append(asyncio.get_running_loop().create_task(self._flush_timer()))
 
         logger.info(
             "Stream listener started: protocol=%s, %s:%d, format=%s",
@@ -76,12 +79,15 @@ class StreamListener:
     async def stop(self) -> None:
         """Stop all listeners and flush remaining records."""
         self._running = False
+        for task in self._tasks:
+            task.cancel()
         for server in self._servers:
             server.close()
         for transport in self._transports:
             transport.close()
         await self._flush()
         await self._flush_hex()
+        self._tasks.clear()
         logger.info("Stream listener stopped")
 
     # ------------------------------------------------------------------
@@ -90,7 +96,8 @@ class StreamListener:
 
     async def _start_tcp(self, host: str, port: int) -> None:
         if self.config.stream_connect_mode == "client":
-            asyncio.ensure_future(self._tcp_client_loop(host, port))
+            task = asyncio.get_running_loop().create_task(self._tcp_client_loop(host, port))
+            self._tasks.append(task)
         else:
             server = await asyncio.start_server(self._handle_tcp_connection, host, port)
             self._servers.append(server)
