@@ -45,11 +45,17 @@ python3.12 -m venv .venv
 .venv/bin/python standalone.py \
     --simulate-ctd ./test_data/ctd/hex/11901.hex \
     --output-dir ./output
+
+# Process ADCP raw binary files
+.venv/bin/python standalone.py \
+    --input-dir ./test_data/adcp \
+    --output-dir ./output \
+    --campaign-id adcp_test
 ```
 
 ### IoT Edge
 
-Deploy via the [Streambase CLI](https://github.com/OceanStreamIO/streambase):
+Deploy via the [Streambase CLI](https://streambase.co):
 
 ```bash
 streambase module build -e <env> -m iotedge-sensorstream -o Linux -a amd64 -t latest
@@ -169,6 +175,9 @@ Use the built-in simulators:
 
 # Drop files into a watch directory
 .venv/bin/python standalone.py --simulate-files ./test_data --watch /tmp/watch --output-dir ./output
+
+# Process ADCP raw binary directly
+.venv/bin/python standalone.py --input-dir ./test_data/adcp --output-dir ./output --campaign-id adcp_test
 ```
 
 ## Testing
