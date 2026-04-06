@@ -1,12 +1,12 @@
 # iotedge-sensorstream
 
-Azure IoT Edge module for ingesting and processing oceanographic sensor data (CTD, GNSS) from USV and ship-based platforms. Outputs GeoParquet files with per-record metadata JSON. Runs on edge devices (Jetson Orin, x86 Ubuntu) and locally in standalone mode.
+Azure IoT Edge module for ingesting and processing oceanographic sensor data (CTD, GNSS, ADCP) from USV and ship-based platforms. Outputs GeoParquet files with per-record metadata JSON. Runs on edge devices (Jetson Orin, x86 Ubuntu) and locally in standalone mode.
 
 ## Data Flow
 
 ```
 Sensor data (TCP/UDP stream, file drop, IoT Edge message)
-  → ingest/ (parse NMEA, CSV, .hex, .cnv)
+  → ingest/ (parse NMEA, CSV, .hex, .cnv, .raw)
   → process/pipeline.py (DataFrame → enrich → validate)
   → exports/ (GeoParquet + metadata JSON → storage, telemetry → IoT Hub)
 ```
@@ -19,6 +19,7 @@ Sensor data (TCP/UDP stream, file drop, IoT Edge message)
 | CSV | `.csv` | pandas | Auto-detect columns; EMSO, R2R, generic |
 | Sea-Bird CNV | `.cnv` | pandas | Processed CTD with header metadata |
 | Sea-Bird HEX | `.hex` + `.hdr` + `.XMLCON` | seabirdscientific + gsw | Raw CTD frequency → T/C/P/S/depth |
+| RDI ADCP | `.raw` | dolfyn | Beam→earth transform, ensemble averaging, u/v/w velocities |
 | tar.gz | `.tar.gz`, `.tgz` | tarfile | Extracts and processes contained files |
 
 ## Quick Start
@@ -62,7 +63,7 @@ Configuration is driven by IoT Hub module twin desired properties. All `EdgeConf
 | Module | Purpose |
 |--------|---------|
 | `azure_handler/` | IoT Hub client, message sending, twin sync, storage abstraction |
-| `ingest/` | TCP/UDP stream listener, file watcher, IoT Edge triggers, hex/NMEA/CSV parsing |
+| `ingest/` | TCP/UDP stream listener, file watcher, IoT Edge triggers, hex/NMEA/CSV/ADCP parsing |
 | `process/` | Processing pipeline: file → DataFrame → GeoParquet + metadata JSON |
 | `exports/` | D2C telemetry, metadata JSON generation, telemetry throttle/downsampling |
 | `simulate/` | Built-in simulators: file dropper, NMEA stream replayer, CTD hex stream |
@@ -182,7 +183,7 @@ Use the built-in simulators:
 
 Test data is stored in Azure Blob Storage (`sensorstream-test` container) and downloaded automatically on first run. Set `AZURE_CONNECTION_STRING` in `.env` or environment. Tests fall back to local `test_data/` if no connection is available.
 
-**90 tests** across 8 files: config, stream parsing, pipeline, file watcher, simulators, hex parsing, CTD stream, and telemetry throttling.
+**118 tests** across 9 files: config, stream parsing, pipeline, file watcher, simulators, hex parsing, ADCP parsing, CTD stream, and telemetry throttling.
 
 ## IoT Edge Integration
 
