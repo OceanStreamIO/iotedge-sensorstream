@@ -139,10 +139,9 @@ async def run_pipeline(args: argparse.Namespace) -> None:
     if args.stream_port:
         config.stream_port = args.stream_port
 
-    # Storage
-    campaign = config.campaign_id or "default"
-    campaign_root = args.output_dir / campaign
-    storage = LocalStorage(base_path=str(campaign_root))
+    # Storage — pipeline paths include {campaign_container}/sensordata/...
+    # so base_path should be the root output directory.
+    storage = LocalStorage(base_path=str(args.output_dir))
 
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
 

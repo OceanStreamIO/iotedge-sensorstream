@@ -204,11 +204,15 @@ def _enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
 
 
 def _make_output_path(config: "EdgeConfig", source_name: str, suffix: str = ".parquet") -> str:
-    """Build a storage path for output files."""
-    campaign = config.campaign_id or "default"
+    """Build a storage path for output files.
+
+    Path structure: ``{campaign_container}/{processed_container}/{date}/{stem}{suffix}``
+    where campaign_container is the Azure Blob container (from survey_id)
+    and processed_container (``sensordata``) is a subfolder within it.
+    """
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     stem = Path(source_name).stem
-    return f"{config.processed_container}/{campaign}/{day}/{stem}{suffix}"
+    return f"{config.campaign_container}/{config.processed_container}/{day}/{stem}{suffix}"
 
 
 async def process_file(

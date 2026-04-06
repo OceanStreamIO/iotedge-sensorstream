@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Literal, Optional
 
@@ -34,6 +35,27 @@ def _unwrap(val: Any) -> Any:
     if isinstance(val, dict) and "value" in val:
         return val["value"]
     return val
+
+
+def sanitize_container_name(name: str) -> str:
+    """Sanitize a string into a valid Azure Blob Storage container name.
+
+    Azure rules: 3-63 chars, lowercase alphanumeric and hyphens only,
+    no leading/trailing/consecutive hyphens, must start with letter or number.
+    """
+    if not name:
+        return "default"
+    s = name.lower()
+    s = re.sub(r"[^a-z0-9-]", "-", s)
+    s = re.sub(r"-{2,}", "-", s)
+    s = s.strip("-")
+    s = s[:63]
+    s = s.strip("-")
+    if not s or not s[0].isalnum():
+        s = "default"
+    if len(s) < 3:
+        s = s.ljust(3, "0")
+    return s
 
 
 def _parse_dict(val: Any) -> Optional[Dict[str, Any]]:
@@ -108,6 +130,7 @@ class EdgeConfig:
     batch_max_records: int = 1000
 
     # --- Metadata ---
+    survey_id: str = ""
     campaign_id: str = ""
     platform_id: str = ""
     platform_name: str = ""
@@ -129,6 +152,15 @@ class EdgeConfig:
 
     # --- Internal ---
     _config_version: int = field(default=0, repr=False)
+
+    @property
+    def campaign_container(self) -> str:
+        """Azure Blob container name derived from survey_id or campaign_id.
+
+        All data for a campaign lands in one container with subfolders
+        for each data type.  Falls back to ``"default"`` when both are empty.
+        """
+        return sanitize_container_name(self.survey_id or self.campaign_id or "default")
 
     # ------------------------------------------------------------------
     # Factory
@@ -171,6 +203,7 @@ class EdgeConfig:
                 _get("batch_max_records", 1000), 1000, "batch_max_records"
             ),
             campaign_id=os.getenv("CAMPAIGN_ID", _get("campaign_id", "")),
+            survey_id=os.getenv("SURVEY_ID", _get("survey_id", "")),
             platform_id=os.getenv("PLATFORM_ID", _get("platform_id", "")),
             platform_name=os.getenv("PLATFORM_NAME", _get("platform_name", "")),
             provider=_get("provider", "auto"),
@@ -241,6 +274,7 @@ class EdgeConfig:
             "output_base_path": os.getenv("OUTPUT_BASE_PATH", "./output"),
             "input_mode": "file",
             "campaign_id": os.getenv("CAMPAIGN_ID", ""),
+            "survey_id": os.getenv("SURVEY_ID", ""),
             "platform_id": os.getenv("PLATFORM_ID", ""),
             "platform_name": os.getenv("PLATFORM_NAME", ""),
             "provider": os.getenv("PROVIDER", "auto"),
