@@ -462,7 +462,9 @@ def _peek_headers(file_path: Path) -> list[str]:
         return []
 
 
-def enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
+def enrich_with_provider(
+    df: pd.DataFrame, provider_name: str, file_path: "Path | None" = None
+) -> pd.DataFrame:
     """Optionally enrich a DataFrame using an oceanstream provider.
 
     Parameters
@@ -471,6 +473,9 @@ def enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
         Data to enrich.
     provider_name : str
         Provider name or ``"auto"`` for auto-detection.
+    file_path : Path or None
+        Source file path, used for provider auto-detection when *provider_name*
+        is ``"auto"``.
 
     Returns
     -------
@@ -485,7 +490,8 @@ def enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
         from oceanstream.providers.factory import detect_or_get_provider
 
         provider = detect_or_get_provider(
-            provider_name if provider_name != "auto" else None, df
+            provider_name if provider_name != "auto" else None,
+            file_path=file_path,
         )
         if provider is not None:
             df = provider.enrich_dataframe(df)

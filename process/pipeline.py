@@ -127,9 +127,11 @@ def _extract_archive(archive_path: Path) -> tuple[list[Path], str]:
     return extracted, tmpdir
 
 
-def _enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
+def _enrich_with_provider(
+    df: pd.DataFrame, provider_name: str, file_path: "Path | None" = None
+) -> pd.DataFrame:
     """Optionally enrich a DataFrame using an oceanstream provider."""
-    return enrich_with_provider(df, provider_name)
+    return enrich_with_provider(df, provider_name, file_path=file_path)
 
 
 def _make_output_path(config: "EdgeConfig", source_name: str, suffix: str = ".parquet") -> str:
@@ -211,7 +213,7 @@ async def process_file(
             return result
 
         # Provider enrichment
-        df = _enrich_with_provider(df, config.provider)
+        df = _enrich_with_provider(df, config.provider, file_path=path)
 
         # Deduplicate (skip for ADCP — multiple depth cells per timestamp)
         if "time" in df.columns and file_type != "adcp":
