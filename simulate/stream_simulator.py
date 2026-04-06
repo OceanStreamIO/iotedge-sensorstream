@@ -6,11 +6,11 @@ network socket, simulating a serial-to-network bridge.
 Usage::
 
     python -m simulate.stream_simulator \\
-        --file ../sd-data-ingest/raw_data/r2r/RR2401_gnss_gp170_aft-2024-02-17.txt \\
+        --file ../oceanstream-cli/raw_data/r2r/RR2401_gnss_gp170_aft-2024-02-17.txt \\
         --protocol tcp --port 9100 --rate 10 --loop
 
     python -m simulate.stream_simulator \\
-        --file ../sd-data-ingest/raw_data/emso/EMSO_OBSEA_CTD_30min.csv \\
+        --file ../oceanstream-cli/raw_data/emso/EMSO_OBSEA_CTD_30min.csv \\
         --protocol udp --port 9100 --format csv --rate 5
 """
 

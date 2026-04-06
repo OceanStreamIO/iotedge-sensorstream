@@ -8,7 +8,7 @@ Usage::
 
     # Process files from a directory
     python standalone.py \\
-        --input-dir ../sd-data-ingest/raw_data/emso \\
+        --input-dir ../oceanstream-cli/raw_data/emso \\
         --output-dir ./output \\
         --campaign-id EMSO_test \\
         --provider emso
@@ -27,7 +27,7 @@ Usage::
 
     # Run with built-in stream simulator
     python standalone.py \\
-        --simulate-stream ../sd-data-ingest/raw_data/r2r/RR2401_gnss_gp170_aft-2024-02-17.txt \\
+        --simulate-stream ../oceanstream-cli/raw_data/r2r/RR2401_gnss_gp170_aft-2024-02-17.txt \\
         --output-dir ./output \\
         --campaign-id R2R_test
 """

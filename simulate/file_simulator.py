@@ -7,12 +7,12 @@ instrument writing to a network share).
 Usage::
 
     python -m simulate.file_simulator \\
-        --source-dir ../sd-data-ingest/raw_data/emso \\
+        --source-dir ../oceanstream-cli/raw_data/emso \\
         --target-dir /tmp/sensorstream-watch \\
         --interval 10
 
     python -m simulate.file_simulator \\
-        --source-dir ../sd-data-ingest/raw_data/r2r \\
+        --source-dir ../oceanstream-cli/raw_data/r2r \\
         --target-dir /tmp/sensorstream-watch \\
         --interval 5 --loop
 """

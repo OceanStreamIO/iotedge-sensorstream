@@ -30,9 +30,9 @@ Sensor data (TCP/UDP stream, file drop, IoT Edge message)
 
 ### Oceanstream Dependency
 
-All data parsing is handled by the **oceanstream** library (`oceanstream` package from `sd-data-ingest` repo). Sensorstream installs it with `[geotrack,adcp]` extras:
+All data parsing is handled by the **oceanstream** library (`oceanstream` package from `oceanstream-cli` repo). Sensorstream installs it with `[geotrack,adcp]` extras:
 
-- **Local dev**: `pip install -e "../sd-data-ingest[geotrack,adcp]"`
+- **Local dev**: `pip install -e "../oceanstream-cli[geotrack,adcp]"`
 - **Production**: `pip install "oceanstream[geotrack,adcp] @ git+https://github.com/OceanStreamIO/oceanstream-cli.git"`
 
 The adapter (`ingest/adapter.py`) provides:
@@ -138,7 +138,7 @@ The `test/conftest.py` session fixtures automatically:
 2. Use size-based freshness checks on subsequent runs
 3. Fall back to local `test_data/` if no Azure connection
 
-**Connection string**: Set `AZURE_CONNECTION_STRING` in `.env` or environment. The conftest also checks `../sd-data-ingest/.env`.
+**Connection string**: Set `AZURE_CONNECTION_STRING` in `.env` or environment. The conftest also checks `../oceanstream-cli/.env`.
 
 Key fixtures (all session-scoped):
 - `test_data_dir` — root of synced test data

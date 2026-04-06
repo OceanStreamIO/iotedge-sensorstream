@@ -192,19 +192,19 @@ def main():
 
     # Copy the original EMSO for comparison
     import shutil
-    src = Path(__file__).parent.parent / "sd-data-ingest" / "raw_data" / "emso" / "EMSO_OBSEA_CTD_30min.csv"
+    src = Path(__file__).parent.parent / "oceanstream-cli" / "raw_data" / "emso" / "EMSO_OBSEA_CTD_30min.csv"
     if src.exists():
         shutil.copy2(src, output_dir / "ctd" / "EMSO_OBSEA_CTD_30min.csv")
         print(f"Copied original EMSO CSV → {output_dir / 'ctd' / 'EMSO_OBSEA_CTD_30min.csv'}")
 
     # Copy processed R2R CNV for testing
-    cnv_src = Path(__file__).parent.parent / "sd-data-ingest" / "raw_data" / "r2r" / "RR2205_ctd_validation" / "processed" / "11901_1db.cnv"
+    cnv_src = Path(__file__).parent.parent / "oceanstream-cli" / "raw_data" / "r2r" / "RR2205_ctd_validation" / "processed" / "11901_1db.cnv"
     if cnv_src.exists():
         shutil.copy2(cnv_src, output_dir / "ctd" / "RR2205_11901_1db.cnv")
         print(f"Copied R2R CNV → {output_dir / 'ctd' / 'RR2205_11901_1db.cnv'}")
 
     # Take a 1000-line slice of the GNSS file for a smaller test
-    gnss_src = Path(__file__).parent.parent / "sd-data-ingest" / "raw_data" / "r2r" / "RR2401_gnss_gp170_aft-2024-02-17.txt"
+    gnss_src = Path(__file__).parent.parent / "oceanstream-cli" / "raw_data" / "r2r" / "RR2401_gnss_gp170_aft-2024-02-17.txt"
     if gnss_src.exists():
         with open(gnss_src) as f:
             lines = [next(f) for _ in range(2000)]

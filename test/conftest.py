@@ -13,7 +13,7 @@ Environment
 -----------
 AZURE_CONNECTION_STRING : str
     Connection string for the ``ne1osvmdevtest`` storage account.
-    Loaded from ``../sd-data-ingest/.env`` or the local ``.env``.
+    Loaded from ``../oceanstream-cli/.env`` or the local ``.env``.
 SENSORSTREAM_TEST_CONTAINER : str
     Container name (default ``sensorstream-test``).
 SENSORSTREAM_TEST_CACHE : str
@@ -41,7 +41,7 @@ from dotenv import load_dotenv
 # Try multiple .env locations
 for _env in [
     Path(__file__).resolve().parent.parent / ".env",
-    Path(__file__).resolve().parent.parent.parent / "sd-data-ingest" / ".env",
+    Path(__file__).resolve().parent.parent.parent / "oceanstream-cli" / ".env",
 ]:
     if _env.exists():
         load_dotenv(_env)

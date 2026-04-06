@@ -27,8 +27,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env from the sd-data-ingest project (where the connection string is)
-_env_path = Path(__file__).resolve().parent.parent.parent / "sd-data-ingest" / ".env"
+# Load .env from the oceanstream-cli project (where the connection string is)
+_env_path = Path(__file__).resolve().parent.parent.parent / "oceanstream-cli" / ".env"
 if _env_path.exists():
     load_dotenv(_env_path)
 # Also try local .env
