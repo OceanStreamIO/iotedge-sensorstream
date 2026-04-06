@@ -13,7 +13,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from ingest.stream_parser import detect_format, parse_csv_line, parse_nmea_line, records_to_dataframe
+from ingest.adapter import detect_format, parse_csv_line, parse_nmea_line, records_to_dataframe
 
 # Hex stream support
 import re
@@ -263,9 +263,9 @@ class StreamListener:
         self._last_flush = time.monotonic()
 
         try:
-            from ingest.hex_parser import HAS_SBS
+            from ingest.adapter import HAS_CTD
 
-            if HAS_SBS:
+            if HAS_CTD:
                 df = self._decode_hex_batch(scan_lines)
                 if df is not None and not df.empty:
                     await self.queue.put(("stream_batch", df))
@@ -295,7 +295,7 @@ class StreamListener:
 
         import pandas as pd
 
-        from ingest.hex_parser import parse_hex_file
+        from ingest.adapter import parse_hex_file
 
         # Build a temporary hex file with header + scans
         tmpdir = tempfile.mkdtemp(prefix="sensorstream_hex_")

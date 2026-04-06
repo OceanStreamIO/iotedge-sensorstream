@@ -167,9 +167,9 @@ class TestEnsembleAverage:
         from ingest.adcp_parser import ensemble_average
 
         avg = ensemble_average(earth_ds, interval_seconds=120.0)
-        assert "depth" in avg.coords
+        assert "depth" in avg  # depth is a data variable (2D) in oceanstream
         # Depth should start at transducer_depth + first range bin
-        assert avg["depth"].values[0] > 7.0
+        assert avg["depth"].values[0, 0] > 7.0
 
     def test_ping_count_reasonable(self, earth_ds):
         from ingest.adcp_parser import ensemble_average

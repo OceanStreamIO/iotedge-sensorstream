@@ -8,19 +8,14 @@ geopandas
 pyarrow
 pynmea2
 
-# CTD hex file parsing
-seabirdscientific
-gsw
-numpy
-
-# ADCP binary file parsing
-dolfyn
-xarray
-scipy
-
 # File watching
 watchdog
 
 # Utilities
 python-dotenv
 psutil
+
+# Oceanstream library (provides all parsing: NMEA, CSV, CTD hex, ADCP)
+# For local development, install with: pip install -e ../sd-data-ingest[geotrack,adcp]
+# For production, install from git:
+# pip install "oceanstream[geotrack,adcp] @ git+https://github.com/OceanStreamIO/oceanstream-cli.git"

@@ -2,8 +2,8 @@
 
 Two processing paths:
 - **File-based**: Reads a sensor data file (CSV, NMEA .txt, CTD .hex/.cnv,
-  or .tar.gz archive), parses it, optionally enriches via an oceanstream
-  provider, writes GeoParquet, and emits telemetry.
+  or .tar.gz archive), parses it via the oceanstream adapter, optionally
+  enriches via an oceanstream provider, writes GeoParquet, and emits telemetry.
 - **Stream batch**: Takes a pre-parsed DataFrame from the stream listener,
   enriches it, appends to a daily GeoParquet partition, and emits telemetry.
 """
@@ -20,13 +20,15 @@ from typing import TYPE_CHECKING, Any, Dict
 
 import pandas as pd
 
-from ingest.adcp_parser import HAS_DOLFYN, parse_adcp_file
-from ingest.hex_parser import HAS_SBS, parse_hex_file
-from ingest.stream_parser import (
-    detect_format,
-    parse_csv_line,
-    parse_nmea_line,
-    records_to_dataframe,
+from ingest.adapter import (
+    HAS_ADCP,
+    HAS_CTD,
+    enrich_with_provider,
+    parse_adcp_file,
+    parse_cnv_file,
+    parse_csv_file,
+    parse_hex_file,
+    parse_nmea_file,
 )
 
 if TYPE_CHECKING:
@@ -64,77 +66,12 @@ def _detect_file_type(path: Path) -> str:
     return "csv"  # default fallback
 
 
-def _parse_nmea_file(file_path: Path) -> pd.DataFrame:
-    """Parse an NMEA text file into a DataFrame."""
-    records = []
-    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            record = parse_nmea_line(line)
-            if record is not None:
-                records.append(record)
-
-    logger.info("Parsed %d NMEA records from %s", len(records), file_path.name)
-    return records_to_dataframe(records)
-
-
-def _parse_csv_file(file_path: Path) -> pd.DataFrame:
-    """Parse a CSV file into a DataFrame."""
-    df = pd.read_csv(file_path, parse_dates=["time"] if "time" in _peek_headers(file_path) else False)
-
-    if "time" in df.columns:
-        df["time"] = pd.to_datetime(df["time"], utc=True, errors="coerce")
-        df = df.dropna(subset=["time"])
-
-    for col in ("latitude", "longitude", "depth", "TEMP", "PSAL", "CNDC"):
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    logger.info("Parsed %d CSV records from %s", len(df), file_path.name)
-    return df
-
-
-def _parse_ctd_file(file_path: Path) -> pd.DataFrame:
-    """Parse a processed CTD .cnv file into a DataFrame.
-
-    Reads the Sea-Bird header to extract column names, then parses
-    the whitespace-delimited data section.
-    """
-    columns = []
-    header_lines = 0
-    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            header_lines += 1
-            if line.startswith("# name"):
-                # Format: # name N = colname: description
-                parts = line.split("=", 1)
-                if len(parts) == 2:
-                    col_name = parts[1].strip().split(":")[0].strip()
-                    columns.append(col_name)
-            if line.startswith("*END*"):
-                break
-
-    if not columns:
-        logger.warning("No column definitions found in CTD file: %s", file_path)
-        return pd.DataFrame()
-
-    df = pd.read_csv(
-        file_path,
-        skiprows=header_lines,
-        sep=r"\s+",
-        names=columns,
-        engine="python",
-    )
-
-    logger.info("Parsed %d CTD records from %s", len(df), file_path.name)
-    return df
-
-
 def _parse_hex_or_fallback(file_path: Path) -> pd.DataFrame:
-    """Parse a .hex file using seabirdscientific, or skip gracefully."""
-    if not HAS_SBS:
+    """Parse a .hex file via oceanstream, or skip gracefully."""
+    if not HAS_CTD:
         logger.warning(
-            "seabirdscientific not installed — cannot parse .hex file: %s. "
-            "Install with: pip install seabirdscientific",
+            "oceanstream CTD parser not available — cannot parse .hex file: %s. "
+            "Install with: pip install oceanstream[geotrack]",
             file_path.name,
         )
         return pd.DataFrame()
@@ -142,65 +79,57 @@ def _parse_hex_or_fallback(file_path: Path) -> pd.DataFrame:
 
 
 def _parse_adcp_or_fallback(file_path: Path) -> pd.DataFrame:
-    """Parse an ADCP .raw file using dolfyn, or skip gracefully."""
-    if not HAS_DOLFYN:
+    """Parse an ADCP .raw file via oceanstream, or skip gracefully."""
+    if not HAS_ADCP:
         logger.warning(
-            "dolfyn not installed — cannot parse ADCP .raw file: %s. "
-            "Install with: pip install dolfyn",
+            "oceanstream ADCP parser not available — cannot parse .raw file: %s. "
+            "Install with: pip install oceanstream[adcp]",
             file_path.name,
         )
         return pd.DataFrame()
     return parse_adcp_file(file_path)
 
 
-def _peek_headers(file_path: Path) -> list[str]:
-    """Read the first line of a file to get CSV headers."""
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            first_line = f.readline().strip()
-            # Skip comment lines (GeoCSV metadata)
-            while first_line.startswith("#"):
-                first_line = f.readline().strip()
-            return [h.strip() for h in first_line.split(",")]
-    except Exception:
-        return []
+def _extract_archive(archive_path: Path) -> tuple[list[Path], str]:
+    """Extract a .tar.gz archive and return paths to data files.
 
-
-def _extract_archive(archive_path: Path) -> list[Path]:
-    """Extract a .tar.gz archive and return paths to data files."""
+    Returns
+    -------
+    tuple[list[Path], str]
+        (extracted file paths, temp directory path to clean up later)
+    """
     tmpdir = tempfile.mkdtemp(prefix="sensorstream_")
     extracted = []
 
     with tarfile.open(archive_path, "r:gz") as tar:
-        # Security: prevent path traversal
         for member in tar.getmembers():
-            if member.name.startswith("/") or ".." in member.name:
+            # Security: reject absolute paths, traversal, symlinks, hardlinks
+            if (
+                member.name.startswith("/")
+                or ".." in member.name
+                or member.issym()
+                or member.islnk()
+            ):
                 logger.warning("Skipping suspicious archive member: %s", member.name)
+                continue
+            # Ensure resolved path stays inside tmpdir
+            target = Path(tmpdir).joinpath(member.name).resolve()
+            if not str(target).startswith(str(Path(tmpdir).resolve())):
+                logger.warning("Path traversal in archive member: %s", member.name)
                 continue
             tar.extract(member, tmpdir)
             if member.isfile():
-                p = Path(tmpdir) / member.name
-                suffix = p.suffix.lower()
-                if suffix in (_NMEA_EXTENSIONS | _CSV_EXTENSIONS | _CTD_EXTENSIONS | {".hdr", ".xmlcon"}):
-                    extracted.append(p)
+                suffix = target.suffix.lower()
+                if suffix in (_NMEA_EXTENSIONS | _CSV_EXTENSIONS | _CTD_EXTENSIONS | _ADCP_EXTENSIONS | {".hdr", ".xmlcon"}):
+                    extracted.append(target)
 
     logger.info("Extracted %d data files from %s", len(extracted), archive_path.name)
-    return extracted
+    return extracted, tmpdir
 
 
 def _enrich_with_provider(df: pd.DataFrame, provider_name: str) -> pd.DataFrame:
     """Optionally enrich a DataFrame using an oceanstream provider."""
-    try:
-        from oceanstream.providers.factory import detect_or_get_provider
-        provider = detect_or_get_provider(provider_name if provider_name != "auto" else None, df)
-        if provider is not None:
-            df = provider.enrich_dataframe(df)
-            logger.info("Enriched with provider: %s", provider.name)
-    except ImportError:
-        logger.debug("oceanstream not available — skipping provider enrichment")
-    except Exception as e:
-        logger.warning("Provider enrichment failed: %s", e)
-    return df
+    return enrich_with_provider(df, provider_name)
 
 
 def _make_output_path(config: "EdgeConfig", source_name: str, suffix: str = ".parquet") -> str:
@@ -248,29 +177,33 @@ async def process_file(
 
     try:
         if file_type == "archive":
-            extracted = _extract_archive(path)
-            all_dfs = []
-            for extracted_file in extracted:
-                sub_type = _detect_file_type(extracted_file)
-                if sub_type == "nmea":
-                    all_dfs.append(_parse_nmea_file(extracted_file))
-                elif sub_type == "csv":
-                    all_dfs.append(_parse_csv_file(extracted_file))
-                elif sub_type == "hex":
-                    all_dfs.append(_parse_hex_or_fallback(extracted_file))
-                elif sub_type == "cnv":
-                    all_dfs.append(_parse_ctd_file(extracted_file))
-            df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+            extracted, tmpdir = _extract_archive(path)
+            try:
+                all_dfs = []
+                for extracted_file in extracted:
+                    sub_type = _detect_file_type(extracted_file)
+                    if sub_type == "nmea":
+                        all_dfs.append(parse_nmea_file(extracted_file))
+                    elif sub_type == "csv":
+                        all_dfs.append(parse_csv_file(extracted_file))
+                    elif sub_type == "hex":
+                        all_dfs.append(_parse_hex_or_fallback(extracted_file))
+                    elif sub_type == "cnv":
+                        all_dfs.append(parse_cnv_file(extracted_file))
+                df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
+            finally:
+                import shutil
+                shutil.rmtree(tmpdir, ignore_errors=True)
         elif file_type == "nmea":
-            df = _parse_nmea_file(path)
+            df = parse_nmea_file(path)
         elif file_type == "hex":
             df = _parse_hex_or_fallback(path)
         elif file_type == "cnv":
-            df = _parse_ctd_file(path)
+            df = parse_cnv_file(path)
         elif file_type == "adcp":
             df = _parse_adcp_or_fallback(path)
         else:
-            df = _parse_csv_file(path)
+            df = parse_csv_file(path)
 
         if df.empty:
             result["status"] = "skipped"

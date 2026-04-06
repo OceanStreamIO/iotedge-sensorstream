@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ARG OCEANSTREAM_BRANCH=main
 ARG OCEANSTREAM_REPO=https://github.com/OceanStreamIO/sd-data-ingest.git
 RUN git clone --depth 1 -b ${OCEANSTREAM_BRANCH} ${OCEANSTREAM_REPO} /tmp/oceanstream && \
-    pip install --no-cache-dir /tmp/oceanstream && \
+    pip install --no-cache-dir "/tmp/oceanstream[geotrack,adcp]" && \
     rm -rf /tmp/oceanstream
 
 # Python dependencies

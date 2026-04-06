@@ -1,14 +1,20 @@
 # Sensorstream IoT Edge Module — Project Guidelines
 
-Azure IoT Edge module for ingesting and processing oceanographic sensor data (CTD, GNSS) from USV and ship-based platforms. Outputs GeoParquet files with per-record metadata. Runs on edge devices (Jetson Orin, x86 Ubuntu) and locally in standalone mode.
+Azure IoT Edge module for ingesting and processing oceanographic sensor data (CTD, GNSS, ADCP) from USV and ship-based platforms. Outputs GeoParquet files with per-record metadata. Runs on edge devices (Jetson Orin, x86 Ubuntu) and locally in standalone mode.
 
 ## Architecture
 
 | Module | Purpose |
 |--------|---------|
 | `azure_handler/` | IoT Hub client, message sending, twin sync, storage abstraction (local + Azure Blob) |
-| `ingest/` | Data ingestion: TCP/UDP stream listener, file watcher, IoT Edge message triggers, hex/NMEA/CSV parsing |
-| `process/` | Processing pipeline: file → parse → DataFrame → GeoParquet + metadata JSON |
+| `ingest/adapter.py` | **Adapter layer** — delegates all parsing to the `oceanstream` library (NMEA, CSV, CTD hex, ADCP) |
+| `ingest/stream_listener.py` | TCP/UDP stream listener, hex stream buffering, batch flushing |
+| `ingest/file_watcher.py` | Watchdog directory monitor for new sensor files |
+| `ingest/file_trigger.py` | IoT Edge message handler for file-added events |
+| `ingest/hex_parser.py` | Sea-Bird hex file utilities (companion file discovery, header parsing) — used by CTD stream simulator |
+| `ingest/stream_parser.py` | Thin re-export from `ingest.adapter` (backwards compatibility) |
+| `ingest/adcp_parser.py` | Thin re-export from `oceanstream.adcp` (backwards compatibility) |
+| `process/` | Processing pipeline: file → adapter parse → DataFrame → GeoParquet + metadata JSON |
 | `exports/` | Telemetry (IoT Hub D2C messages), metadata JSON generation, telemetry throttle/downsampling |
 | `simulate/` | Built-in simulators: file dropper, NMEA stream replayer, CTD hex stream (SBE 11plus emulation) |
 | `test/` | Pytest suite with blob-backed test data fixtures |
@@ -17,10 +23,26 @@ Azure IoT Edge module for ingesting and processing oceanographic sensor data (CT
 
 ```
 Sensor data (TCP/UDP stream, file drop, IoT Edge message)
-  → ingest/ (parse NMEA, CSV, .hex, .cnv)
-  → process/pipeline.py (DataFrame, enrich, validate)
+  → ingest/adapter.py (delegates to oceanstream: NMEA, CSV, CTD hex, ADCP)
+  → process/pipeline.py (DataFrame, provider enrichment, deduplication)
   → exports/ (GeoParquet + metadata JSON → storage, telemetry → IoT Hub)
 ```
+
+### Oceanstream Dependency
+
+All data parsing is handled by the **oceanstream** library (`oceanstream` package from `sd-data-ingest` repo). Sensorstream installs it with `[geotrack,adcp]` extras:
+
+- **Local dev**: `pip install -e "../sd-data-ingest[geotrack,adcp]"`
+- **Production**: `pip install "oceanstream[geotrack,adcp] @ git+https://github.com/OceanStreamIO/oceanstream-cli.git"`
+
+The adapter (`ingest/adapter.py`) provides:
+- `parse_nmea_line()` / `parse_nmea_file()` — NMEA via `oceanstream.sensors.processors.nmea_gnss`
+- `parse_csv_file()` / `parse_csv_line()` — CSV parsing
+- `parse_hex_file()` — CTD hex via `oceanstream.sensors.processors.sbe911`
+- `parse_cnv_file()` — CTD cnv files
+- `parse_adcp_file()` — ADCP via `oceanstream.adcp.processor.process_file`
+- `enrich_with_provider()` — Provider enrichment via `oceanstream.providers`
+- `detect_format()` — Line format auto-detection (NMEA/CSV/hex)
 
 ### Entry Points
 
