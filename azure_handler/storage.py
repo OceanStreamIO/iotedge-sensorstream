@@ -53,11 +53,14 @@ class LocalStorage(StorageBackend):
         return full
 
     def save_parquet(self, df: "pd.DataFrame", path: str) -> str:
-        import geopandas as gpd
-
         full = self._resolve(path)
 
-        if "latitude" in df.columns and "longitude" in df.columns:
+        try:
+            import geopandas as gpd
+        except ImportError:
+            gpd = None
+
+        if gpd and "latitude" in df.columns and "longitude" in df.columns:
             valid = df["latitude"].notna() & df["longitude"].notna()
             if valid.any():
                 geometry = gpd.points_from_xy(
@@ -129,14 +132,18 @@ class AzureBlobEdgeStorage(StorageBackend):
 
     def save_parquet(self, df: "pd.DataFrame", path: str) -> str:
         import tempfile
-        import geopandas as gpd
+
+        try:
+            import geopandas as gpd
+        except ImportError:
+            gpd = None
 
         container = path.split("/")[0]
         blob_name = "/".join(path.split("/")[1:])
         self._ensure_container(container)
 
         with tempfile.NamedTemporaryFile(suffix=".parquet", delete=True) as tmp:
-            if "latitude" in df.columns and "longitude" in df.columns:
+            if gpd and "latitude" in df.columns and "longitude" in df.columns:
                 valid = df["latitude"].notna() & df["longitude"].notna()
                 if valid.any():
                     geometry = gpd.points_from_xy(

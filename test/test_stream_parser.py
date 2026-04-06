@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import pandas as pd
 
+from ingest.adapter import HAS_NMEA
 from ingest.stream_parser import (
     detect_format,
     parse_csv_line,
@@ -39,6 +40,7 @@ class TestDetectFormat:
 # parse_nmea_line
 # ------------------------------------------------------------------
 
+@pytest.mark.skipif(not HAS_NMEA, reason="oceanstream NMEA parser not installed")
 class TestParseNmeaLine:
     def test_gga_with_timestamp(self):
         line = "2024-02-17T00:00:01.346168Z $GPGGA,000000.00,3242.3916,N,11714.1640,W,1,10,0.8,10.2,M,-34.3,M,,*66"

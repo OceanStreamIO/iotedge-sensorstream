@@ -10,6 +10,7 @@ import pytest
 
 from azure_handler.storage import LocalStorage
 from config import EdgeConfig
+from ingest.adapter import HAS_NMEA
 from process.pipeline import process_file
 
 
@@ -65,6 +66,7 @@ async def test_process_empty_csv(config, storage, tmp_path):
 # NMEA file processing
 # ------------------------------------------------------------------
 
+@pytest.mark.skipif(not HAS_NMEA, reason="oceanstream NMEA parser not installed")
 @pytest.mark.asyncio
 async def test_process_nmea_file(config, storage, tmp_path):
     """Process a small NMEA .txt file."""

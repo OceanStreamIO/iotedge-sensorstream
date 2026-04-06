@@ -60,12 +60,14 @@ class TestReadRdi:
         assert ds.sizes["range"] == 70
         assert ds.sizes["beam"] == 4
 
+    @pytest.mark.skipif(not HAS_DOLFYN, reason="dolfyn not installed")
     def test_file_not_found(self):
         from ingest.adcp_parser import read_rdi
 
         with pytest.raises((FileNotFoundError, RuntimeError)):
             read_rdi(Path("/nonexistent/file.raw"))
 
+    @pytest.mark.skipif(not HAS_DOLFYN, reason="dolfyn not installed")
     def test_wrong_extension(self, tmp_path):
         from ingest.adcp_parser import read_rdi
 
