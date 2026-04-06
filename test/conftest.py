@@ -187,3 +187,27 @@ def gnss_nmea_file(test_data_dir: Path) -> Path:
     if not p.exists():
         pytest.skip(f"GNSS NMEA not found: {p}")
     return p
+
+
+@pytest.fixture(scope="session")
+def adcp_dir(test_data_dir: Path) -> Path:
+    """Directory containing ADCP .raw test data."""
+    p = test_data_dir / "adcp"
+    if not p.exists() or not (p / "km2023_257_66125.raw").exists():
+        pytest.skip(f"ADCP test data not found: {p}")
+    return p
+
+
+@pytest.fixture(scope="session")
+def adcp_raw_file(adcp_dir: Path) -> Path:
+    """Path to a real RDI ADCP .raw binary file."""
+    return adcp_dir / "km2023_257_66125.raw"
+
+
+@pytest.fixture(scope="session")
+def adcp_reference_file(adcp_dir: Path) -> Path:
+    """Path to the UHDAS-processed reference NetCDF for validation."""
+    p = adcp_dir / "wh300_reference.nc"
+    if not p.exists():
+        pytest.skip(f"ADCP reference file not found: {p}")
+    return p

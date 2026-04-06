@@ -13,6 +13,11 @@ seabirdscientific
 gsw
 numpy
 
+# ADCP binary file parsing
+dolfyn
+xarray
+scipy
+
 # File watching
 watchdog
 

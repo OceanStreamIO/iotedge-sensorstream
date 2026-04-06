@@ -243,7 +243,7 @@ async def run_pipeline(args: argparse.Namespace) -> None:
     if args.input_dir:
         total_start = time.time()
         input_dir = args.input_dir.resolve()
-        patterns = ["*.csv", "*.txt", "*.hex", "*.cnv", "*.tar.gz", "*.tgz"]
+        patterns = ["*.csv", "*.txt", "*.hex", "*.cnv", "*.raw", "*.tar.gz", "*.tgz"]
         raw_files = []
         for pat in patterns:
             raw_files.extend(sorted(input_dir.glob(pat)))

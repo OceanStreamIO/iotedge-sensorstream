@@ -99,7 +99,7 @@ class EdgeConfig:
 
     # --- File watcher settings ---
     watch_dir: str = "/data/sensor"
-    watch_patterns: str = "*.csv,*.txt,*.hex,*.cnv,*.tar.gz"
+    watch_patterns: str = "*.csv,*.txt,*.hex,*.cnv,*.raw,*.tar.gz"
     watch_polling: bool = False
     watch_poll_interval: int = 2
 
@@ -159,7 +159,7 @@ class EdgeConfig:
             stream_format=_get("stream_format", "auto"),
             stream_connect_mode=_get("stream_connect_mode", "server"),
             watch_dir=os.getenv("WATCH_DIR", _get("watch_dir", "/data/sensor")),
-            watch_patterns=_get("watch_patterns", "*.csv,*.txt,*.hex,*.cnv,*.tar.gz"),
+            watch_patterns=_get("watch_patterns", "*.csv,*.txt,*.hex,*.cnv,*.raw,*.tar.gz"),
             watch_polling=_parse_bool(_get("watch_polling", False), default=False),
             watch_poll_interval=_safe_int(
                 _get("watch_poll_interval", 2), 2, "watch_poll_interval"

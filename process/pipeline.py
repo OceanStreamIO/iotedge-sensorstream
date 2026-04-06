@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict
 
 import pandas as pd
 
+from ingest.adcp_parser import HAS_DOLFYN, parse_adcp_file
 from ingest.hex_parser import HAS_SBS, parse_hex_file
 from ingest.stream_parser import (
     detect_format,
@@ -40,6 +41,7 @@ _CSV_EXTENSIONS = {".csv", ".geocsv"}
 _HEX_EXTENSIONS = {".hex"}
 _CNV_EXTENSIONS = {".cnv"}
 _CTD_EXTENSIONS = _HEX_EXTENSIONS | _CNV_EXTENSIONS
+_ADCP_EXTENSIONS = {".raw"}
 _ARCHIVE_EXTENSIONS = {".tar.gz", ".tgz"}
 
 
@@ -57,6 +59,8 @@ def _detect_file_type(path: Path) -> str:
         return "hex"
     if suffix in _CNV_EXTENSIONS:
         return "cnv"
+    if suffix in _ADCP_EXTENSIONS:
+        return "adcp"
     return "csv"  # default fallback
 
 
@@ -135,6 +139,18 @@ def _parse_hex_or_fallback(file_path: Path) -> pd.DataFrame:
         )
         return pd.DataFrame()
     return parse_hex_file(file_path)
+
+
+def _parse_adcp_or_fallback(file_path: Path) -> pd.DataFrame:
+    """Parse an ADCP .raw file using dolfyn, or skip gracefully."""
+    if not HAS_DOLFYN:
+        logger.warning(
+            "dolfyn not installed — cannot parse ADCP .raw file: %s. "
+            "Install with: pip install dolfyn",
+            file_path.name,
+        )
+        return pd.DataFrame()
+    return parse_adcp_file(file_path)
 
 
 def _peek_headers(file_path: Path) -> list[str]:
@@ -247,6 +263,8 @@ async def process_file(
             df = _parse_hex_or_fallback(path)
         elif file_type == "cnv":
             df = _parse_ctd_file(path)
+        elif file_type == "adcp":
+            df = _parse_adcp_or_fallback(path)
         else:
             df = _parse_csv_file(path)
 
@@ -258,8 +276,8 @@ async def process_file(
         # Provider enrichment
         df = _enrich_with_provider(df, config.provider)
 
-        # Deduplicate
-        if "time" in df.columns:
+        # Deduplicate (skip for ADCP — multiple depth cells per timestamp)
+        if "time" in df.columns and file_type != "adcp":
             before = len(df)
             df = df.drop_duplicates(subset=["time"], keep="first")
             if len(df) < before:
