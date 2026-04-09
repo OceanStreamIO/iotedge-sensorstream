@@ -72,6 +72,10 @@ async def async_main() -> None:
     # --- Processing queue ---
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
 
+    # --- Telemetry throttle ---
+    from exports.throttle import TelemetryThrottle
+    throttle = TelemetryThrottle(config, client)
+
     loop = asyncio.get_running_loop()
 
     # --- Twin update handler ---
@@ -117,6 +121,8 @@ async def async_main() -> None:
                     await process_file(payload, config, storage, client)
                 elif msg_type == "stream_batch":
                     await process_stream_batch(payload, config, storage, client)
+                elif msg_type == "ctd_reading":
+                    throttle.maybe_send_record(payload)
             except Exception as e:
                 logger.error("Worker error: %s", e, exc_info=True)
             finally:
@@ -127,6 +133,12 @@ async def async_main() -> None:
     # --- Start ingest sources ---
     stream_listener = None
     file_watcher = None
+    ctd_monitor = None
+
+    if config.ctd_enabled:
+        from ingest.ctd_file_monitor import CtdFileMonitor
+        ctd_monitor = CtdFileMonitor(config, queue)
+        await ctd_monitor.start()
 
     if config.input_mode in ("stream", "both"):
         stream_listener = StreamListener(config, queue)
@@ -151,6 +163,8 @@ async def async_main() -> None:
     await stop_event.wait()
 
     logger.info("Shutting down…")
+    if ctd_monitor:
+        await ctd_monitor.stop()
     if stream_listener:
         await stream_listener.stop()
     if file_watcher:

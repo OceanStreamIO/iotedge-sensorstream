@@ -89,6 +89,7 @@ _BOOL_FIELDS: set[str] = {
     "watch_polling",
     "telemetry_send_records",
     "telemetry_send_summaries",
+    "ctd_enabled",
 }
 
 _INT_FIELDS: set[str] = {
@@ -98,6 +99,7 @@ _INT_FIELDS: set[str] = {
     "telemetry_interval_seconds",
     "telemetry_downsample_seconds",
     "watch_poll_interval",
+    "ctd_poll_interval_seconds",
 }
 
 _FLOAT_FIELDS: set[str] = set()
@@ -121,7 +123,7 @@ class EdgeConfig:
 
     # --- File watcher settings ---
     watch_dir: str = "/data/sensor"
-    watch_patterns: str = "*.csv,*.txt,*.hex,*.cnv,*.raw,*.tar.gz"
+    watch_patterns: str = "*.csv,*.txt,*.hex,*.cnv,*.raw,*.ad2cp,*.tar.gz"
     watch_polling: bool = False
     watch_poll_interval: int = 2
 
@@ -141,6 +143,12 @@ class EdgeConfig:
     telemetry_send_records: bool = True
     telemetry_send_summaries: bool = True
     telemetry_downsample_seconds: int = 30
+
+    # --- CTD file monitor ---
+    ctd_enabled: bool = False
+    ctd_file_path: str = "/mnt/ctd/latest_ctd.csv"
+    ctd_poll_interval_seconds: int = 30
+    ctd_observatory: str = "munkholmen"
 
     # --- Storage ---
     storage_backend: Literal["azure-blob-edge", "local"] = "azure-blob-edge"
@@ -191,7 +199,7 @@ class EdgeConfig:
             stream_format=_get("stream_format", "auto"),
             stream_connect_mode=_get("stream_connect_mode", "server"),
             watch_dir=os.getenv("WATCH_DIR", _get("watch_dir", "/data/sensor")),
-            watch_patterns=_get("watch_patterns", "*.csv,*.txt,*.hex,*.cnv,*.raw,*.tar.gz"),
+            watch_patterns=_get("watch_patterns", "*.csv,*.txt,*.hex,*.cnv,*.raw,*.ad2cp,*.tar.gz"),
             watch_polling=_parse_bool(_get("watch_polling", False), default=False),
             watch_poll_interval=_safe_int(
                 _get("watch_poll_interval", 2), 2, "watch_poll_interval"
@@ -215,6 +223,12 @@ class EdgeConfig:
             telemetry_downsample_seconds=_safe_int(
                 _get("telemetry_downsample_seconds", 30), 30, "telemetry_downsample_seconds"
             ),
+            ctd_enabled=_parse_bool(_get("ctd_enabled", False), default=False),
+            ctd_file_path=os.getenv("CTD_FILE_PATH", _get("ctd_file_path", "/mnt/ctd/latest_ctd.csv")),
+            ctd_poll_interval_seconds=_safe_int(
+                _get("ctd_poll_interval_seconds", 30), 30, "ctd_poll_interval_seconds"
+            ),
+            ctd_observatory=_get("ctd_observatory", "munkholmen"),
             storage_backend=os.getenv("STORAGE_BACKEND", _get("storage_backend", "azure-blob-edge")),
             output_base_path=os.getenv("OUTPUT_BASE_PATH", "/app/processed"),
             processed_container=os.getenv("PROCESSED_CONTAINER_NAME", "sensordata"),

@@ -97,6 +97,17 @@ def parse_args() -> argparse.Namespace:
         help="Simulator rate: lines/sec (stream) or interval in seconds (file). Default: 10.",
     )
 
+    # CTD file monitor
+    ctd_group = parser.add_argument_group("CTD file monitor")
+    ctd_group.add_argument(
+        "--ctd-file", type=Path, metavar="FILE",
+        help="Poll a CTD 'latest reading' CSV (e.g. /mnt/ctd/latest_ctd.csv).",
+    )
+    ctd_group.add_argument(
+        "--ctd-poll-interval", type=int, default=30,
+        help="CTD file poll interval in seconds (default: 30).",
+    )
+
     # Output & metadata
     parser.add_argument("--output-dir", default=Path("./output"), type=Path)
     parser.add_argument("--campaign-id", default="")
@@ -138,6 +149,10 @@ async def run_pipeline(args: argparse.Namespace) -> None:
         config.watch_dir = str(args.watch)
     if args.stream_port:
         config.stream_port = args.stream_port
+    if args.ctd_file:
+        config.ctd_enabled = True
+        config.ctd_file_path = str(args.ctd_file)
+        config.ctd_poll_interval_seconds = args.ctd_poll_interval
 
     # Storage — pipeline paths include {campaign_container}/sensordata/...
     # so base_path should be the root output directory.
@@ -159,6 +174,14 @@ async def run_pipeline(args: argparse.Namespace) -> None:
                 elif msg_type == "stream_batch":
                     result = await process_stream_batch(payload, config, storage, client=None)
                     all_results.append(result)
+                elif msg_type == "ctd_reading":
+                    logger.info(
+                        "CTD: T=%.3f°C  S=%.3f  P=%.1f dbar @ %s",
+                        payload.get("temperature", 0),
+                        payload.get("salinity", 0),
+                        payload.get("pressure", 0),
+                        payload.get("time", "?"),
+                    )
             except Exception as e:
                 logger.error("Worker error: %s", e, exc_info=True)
             finally:
@@ -222,6 +245,12 @@ async def run_pipeline(args: argparse.Namespace) -> None:
     # --- Start ingest sources ---
     stream_listener = None
     file_watcher = None
+    ctd_monitor = None
+
+    if config.ctd_enabled:
+        from ingest.ctd_file_monitor import CtdFileMonitor
+        ctd_monitor = CtdFileMonitor(config, queue)
+        await ctd_monitor.start()
 
     if args.stream_port or args.simulate_stream or args.simulate_ctd:
         from ingest.stream_listener import StreamListener
@@ -242,7 +271,7 @@ async def run_pipeline(args: argparse.Namespace) -> None:
     if args.input_dir:
         total_start = time.time()
         input_dir = args.input_dir.resolve()
-        patterns = ["*.csv", "*.txt", "*.hex", "*.cnv", "*.raw", "*.tar.gz", "*.tgz"]
+        patterns = ["*.csv", "*.txt", "*.hex", "*.cnv", "*.raw", "*.ad2cp", "*.AD2CP", "*.tar.gz", "*.tgz"]
         raw_files = []
         for pat in patterns:
             raw_files.extend(sorted(input_dir.glob(pat)))
@@ -267,7 +296,7 @@ async def run_pipeline(args: argparse.Namespace) -> None:
                 "━━━ Done: %d ok, %d failed, %d skipped in %.1fs ━━━",
                 ok, failed, skipped, total_time,
             )
-    elif args.watch or args.stream_port or args.simulate_stream or args.simulate_files or args.simulate_ctd:
+    elif args.watch or args.stream_port or args.simulate_stream or args.simulate_files or args.simulate_ctd or config.ctd_enabled:
         # Live mode — wait for data until Ctrl+C
         logger.info("Live mode — press Ctrl+C to stop")
         try:
@@ -287,6 +316,8 @@ async def run_pipeline(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # --- Cleanup ---
+    if ctd_monitor:
+        await ctd_monitor.stop()
     if stream_listener:
         await stream_listener.stop()
     if file_watcher:
