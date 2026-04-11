@@ -38,6 +38,7 @@ HAS_OCEANSTREAM = False
 HAS_NMEA = False
 HAS_CTD = False
 HAS_ADCP = False
+HAS_AD2CP = False
 
 try:
     import oceanstream  # noqa: F401
@@ -93,6 +94,14 @@ if HAS_OCEANSTREAM:
 
         HAS_ADCP = True
     except (ImportError, AttributeError, Exception):
+        pass
+
+    # AD2CP (Nortek Signature) support — no dolfyn dependency
+    try:
+        from oceanstream.adcp.ad2cp_reader import read_ad2cp as _test_ad2cp  # noqa: F401
+
+        HAS_AD2CP = True
+    except (ImportError, Exception):
         pass
 
 
@@ -417,6 +426,37 @@ def parse_adcp_file(
         ensemble_interval=ensemble_interval,
         corr_threshold=corr_threshold,
     )
+
+
+def parse_ad2cp_file(
+    raw_path: Path,
+    salinity: float = 35.0,
+) -> pd.DataFrame:
+    """Parse a Nortek AD2CP ``.ad2cp`` file via oceanstream.
+
+    Full pipeline: read → compute Sv → flatten.
+
+    Parameters
+    ----------
+    raw_path : Path
+        Path to the ``.ad2cp`` binary file.
+    salinity : float
+        Salinity in PSU for absorption estimation.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (ping_time, range_sample, frequency).
+    """
+    if not HAS_AD2CP:
+        raise RuntimeError(
+            "oceanstream AD2CP parser not available. "
+            "Install with: pip install oceanstream[adcp]"
+        )
+
+    from oceanstream.adcp.processor import process_ad2cp_file as _os_process_ad2cp
+
+    return _os_process_ad2cp(raw_path, salinity=salinity)
 
 
 # ---------------------------------------------------------------------------

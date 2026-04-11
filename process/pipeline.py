@@ -21,9 +21,11 @@ from typing import TYPE_CHECKING, Any, Dict
 import pandas as pd
 
 from ingest.adapter import (
+    HAS_AD2CP,
     HAS_ADCP,
     HAS_CTD,
     enrich_with_provider,
+    parse_ad2cp_file,
     parse_adcp_file,
     parse_cnv_file,
     parse_csv_file,
@@ -44,6 +46,7 @@ _HEX_EXTENSIONS = {".hex"}
 _CNV_EXTENSIONS = {".cnv"}
 _CTD_EXTENSIONS = _HEX_EXTENSIONS | _CNV_EXTENSIONS
 _ADCP_EXTENSIONS = {".raw"}
+_AD2CP_EXTENSIONS = {".ad2cp"}
 _ARCHIVE_EXTENSIONS = {".tar.gz", ".tgz"}
 
 
@@ -63,6 +66,8 @@ def _detect_file_type(path: Path) -> str:
         return "cnv"
     if suffix in _ADCP_EXTENSIONS:
         return "adcp"
+    if suffix in _AD2CP_EXTENSIONS:
+        return "ad2cp"
     return "csv"  # default fallback
 
 
@@ -88,6 +93,18 @@ def _parse_adcp_or_fallback(file_path: Path) -> pd.DataFrame:
         )
         return pd.DataFrame()
     return parse_adcp_file(file_path)
+
+
+def _parse_ad2cp_or_fallback(file_path: Path) -> pd.DataFrame:
+    """Parse a Nortek AD2CP .ad2cp file via oceanstream, or skip gracefully."""
+    if not HAS_AD2CP:
+        logger.warning(
+            "oceanstream AD2CP parser not available — cannot parse .ad2cp file: %s. "
+            "Install with: pip install oceanstream[adcp]",
+            file_path.name,
+        )
+        return pd.DataFrame()
+    return parse_ad2cp_file(file_path)
 
 
 def _extract_archive(archive_path: Path) -> tuple[list[Path], str]:
@@ -120,7 +137,7 @@ def _extract_archive(archive_path: Path) -> tuple[list[Path], str]:
             tar.extract(member, tmpdir)
             if member.isfile():
                 suffix = target.suffix.lower()
-                if suffix in (_NMEA_EXTENSIONS | _CSV_EXTENSIONS | _CTD_EXTENSIONS | _ADCP_EXTENSIONS | {".hdr", ".xmlcon"}):
+                if suffix in (_NMEA_EXTENSIONS | _CSV_EXTENSIONS | _CTD_EXTENSIONS | _ADCP_EXTENSIONS | _AD2CP_EXTENSIONS | {".hdr", ".xmlcon"}):
                     extracted.append(target)
 
     logger.info("Extracted %d data files from %s", len(extracted), archive_path.name)
@@ -192,6 +209,10 @@ async def process_file(
                         all_dfs.append(_parse_hex_or_fallback(extracted_file))
                     elif sub_type == "cnv":
                         all_dfs.append(parse_cnv_file(extracted_file))
+                    elif sub_type == "adcp":
+                        all_dfs.append(_parse_adcp_or_fallback(extracted_file))
+                    elif sub_type == "ad2cp":
+                        all_dfs.append(_parse_ad2cp_or_fallback(extracted_file))
                 df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame()
             finally:
                 import shutil
@@ -204,6 +225,8 @@ async def process_file(
             df = parse_cnv_file(path)
         elif file_type == "adcp":
             df = _parse_adcp_or_fallback(path)
+        elif file_type == "ad2cp":
+            df = _parse_ad2cp_or_fallback(path)
         else:
             df = parse_csv_file(path)
 
@@ -215,8 +238,8 @@ async def process_file(
         # Provider enrichment
         df = _enrich_with_provider(df, config.provider, file_path=path)
 
-        # Deduplicate (skip for ADCP — multiple depth cells per timestamp)
-        if "time" in df.columns and file_type != "adcp":
+        # Deduplicate (skip for ADCP/AD2CP — multiple depth cells per timestamp)
+        if "time" in df.columns and file_type not in ("adcp", "ad2cp"):
             before = len(df)
             df = df.drop_duplicates(subset=["time"], keep="first")
             if len(df) < before:
