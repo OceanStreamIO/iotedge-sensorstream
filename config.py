@@ -132,7 +132,6 @@ class EdgeConfig:
     batch_max_records: int = 1000
 
     # --- Metadata ---
-    survey_id: str = ""
     campaign_id: str = ""
     platform_id: str = ""
     platform_name: str = ""
@@ -163,12 +162,12 @@ class EdgeConfig:
 
     @property
     def campaign_container(self) -> str:
-        """Azure Blob container name derived from survey_id or campaign_id.
+        """Azure Blob container name derived from campaign_id.
 
         All data for a campaign lands in one container with subfolders
-        for each data type.  Falls back to ``"default"`` when both are empty.
+        for each data type.  Falls back to ``"default"`` when empty.
         """
-        return sanitize_container_name(self.survey_id or self.campaign_id or "default")
+        return sanitize_container_name(self.campaign_id or "default")
 
     # ------------------------------------------------------------------
     # Factory
@@ -211,7 +210,6 @@ class EdgeConfig:
                 _get("batch_max_records", 1000), 1000, "batch_max_records"
             ),
             campaign_id=os.getenv("CAMPAIGN_ID", _get("campaign_id", "")),
-            survey_id=os.getenv("SURVEY_ID", _get("survey_id", "")),
             platform_id=os.getenv("PLATFORM_ID", _get("platform_id", "")),
             platform_name=os.getenv("PLATFORM_NAME", _get("platform_name", "")),
             provider=_get("provider", "auto"),
@@ -288,7 +286,6 @@ class EdgeConfig:
             "output_base_path": os.getenv("OUTPUT_BASE_PATH", "./output"),
             "input_mode": "file",
             "campaign_id": os.getenv("CAMPAIGN_ID", ""),
-            "survey_id": os.getenv("SURVEY_ID", ""),
             "platform_id": os.getenv("PLATFORM_ID", ""),
             "platform_name": os.getenv("PLATFORM_NAME", ""),
             "provider": os.getenv("PROVIDER", "auto"),

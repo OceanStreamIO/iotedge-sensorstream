@@ -155,7 +155,7 @@ def _make_output_path(config: "EdgeConfig", source_name: str, suffix: str = ".pa
     """Build a storage path for output files.
 
     Path structure: ``{campaign_container}/{processed_container}/{date}/{stem}{suffix}``
-    where campaign_container is the Azure Blob container (from survey_id)
+    where campaign_container is the Azure Blob container (from campaign_id)
     and processed_container (``sensordata``) is a subfolder within it.
     """
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
