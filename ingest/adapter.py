@@ -434,7 +434,9 @@ def parse_ad2cp_file(
 ) -> pd.DataFrame:
     """Parse a Nortek AD2CP ``.ad2cp`` file via oceanstream.
 
-    Full pipeline: read → compute Sv → flatten.
+    Tries echosounder mode first (Sv computation). If the file
+    contains only velocity/current data, falls back to the velocity
+    reader.
 
     Parameters
     ----------
@@ -446,7 +448,8 @@ def parse_ad2cp_file(
     Returns
     -------
     pd.DataFrame
-        One row per (ping_time, range_sample, frequency).
+        One row per (ping_time, range_sample, frequency) for echosounder,
+        or per (time, depth) for velocity data.
     """
     if not HAS_AD2CP:
         raise RuntimeError(
@@ -456,7 +459,27 @@ def parse_ad2cp_file(
 
     from oceanstream.adcp.processor import process_ad2cp_file as _os_process_ad2cp
 
-    return _os_process_ad2cp(raw_path, salinity=salinity)
+    try:
+        return _os_process_ad2cp(raw_path, salinity=salinity)
+    except ValueError as exc:
+        if "No echosounder data" in str(exc):
+            logger.info(
+                "AD2CP %s has no echosounder data — trying velocity reader",
+                raw_path.name,
+            )
+            from oceanstream.adcp.processor import (
+                process_ad2cp_velocity_file as _os_process_velocity,
+            )
+
+            try:
+                return _os_process_velocity(raw_path)
+            except ValueError:
+                logger.warning(
+                    "AD2CP %s has neither echosounder nor velocity data — skipping",
+                    raw_path.name,
+                )
+                return pd.DataFrame()
+        raise
 
 
 # ---------------------------------------------------------------------------
